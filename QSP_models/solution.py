@@ -1,10 +1,26 @@
-#
-# Class to solve the differential equations
-#
 import scipy
 
+
 class Solution:
+    """Class for obtaining numeric solutions of models.
+
+    """
     def __init__(self, model, t_0, t_end, step_size):
+        """Constructor Method.
+
+        Parameters
+        ----------
+        model : class
+            Class containing equations() function comprising model ODEs
+        t_0 : Int
+            Start time for simulation
+        t_end : Int
+            Finish time for simulation
+        step_size : Int
+            Interval between start and end time at which to return
+            simulation results
+
+        """
         self.t_start = t_0
         self.t_end = t_end
         self.t_eval = list(range(t_0, t_end, step_size))
@@ -38,6 +54,13 @@ class Solution:
                        0, 0]
 
     def solve(self):
+        """Numeric solver.
+
+        Returns
+        ----------
+        solution: :
+
+        """
         solution = scipy.integrate.solve_ivp(fun=lambda t, y: self.equations(t, y),
                                              t_span=[self.t_eval[0],
                                                      self.t_eval[-1]],

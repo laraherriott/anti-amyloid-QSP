@@ -2,9 +2,36 @@ import math
 
 from .parameters import Lecanemab, NoAbParameters
 
+
 class OneAbModel:
-    def __init__(self, dose, bodyweight, final_dose, dose_interval, x=None, y=None):
-        
+    """Class representing the ODE model with one antibody.
+
+    """
+    def __init__(self, dose, bodyweight, final_dose, dose_interval,
+                 x=None, y=None, z=None):
+        """Constructor Method.
+
+        Parameters
+        ----------
+        dose : Numeric
+            Dose in mg/kg
+        bodyweight : Numeric
+            Representative bodyweight of the population in kg
+        final dose : Int
+            Time of final dose in dosing schedule
+        dose_interval : Int
+            Time between repeated doses in dosing schedule
+        x : List
+            Input parameters to override those provided in
+            class:NoAbParameters if desired
+        y : List
+            Input parameters to override those provided in
+            class:Lecanemab if desired
+        z : List
+            Input parameters to override default KD values for
+            monomer, oligomer, and plaque, if desired
+
+        """
         if x is None:
             self.general = NoAbParameters()
         else:
@@ -35,6 +62,7 @@ class OneAbModel:
         if y is None:
             self.params = Lecanemab()
         else:
+            print('y')
             self.params = Lecanemab()
             self.params.k_mAb_plasma_brain = 10**y[0]
             self.params.k_mAb_brain_plasma = 10**y[1]
@@ -44,6 +72,11 @@ class OneAbModel:
             self.params.plasma_clearance = 10**y[5]
             self.params.brain_clearance = 10**y[6]
             self.params.k_ADCP = 10**y[7]
+
+        if z is not None:
+            self.params.offma0 = z[0]
+            self.params.offma1 = z[1]
+            self.params.offma2 = z[2]
 
         self.type = 'one_ab'
         self.dose = dose
@@ -56,6 +89,21 @@ class OneAbModel:
             i += dose_interval
 
     def equations(self, t, y):
+        """Ordinary Differential Equations used by scipy.integrate.solve_ivp()
+
+        Parameters
+        ----------
+        t : float
+            Current time
+        y : List
+            Current values for each variable
+
+        Returns
+        ----------
+        dYdt : List
+            Change in each variable at current time
+
+        """
         brain_ab = y[0]
         brain_monomer = y[1]
         brain_oligomer = y[2]
@@ -210,7 +258,7 @@ class OneAbModel:
                               + self.params.k_mAb_brain_csf*brain_oligomer_mAb
                               - + self.params.k_mAb_csf_brain*csf_oligomer_mAb)
 
-        dYdt = [d_brain_mAb, d_brain_monomer, d_brain_oligomer,  d_brain_plaque,
+        dYdt = [d_brain_mAb, d_brain_monomer, d_brain_oligomer, d_brain_plaque,
                 d_plasma_mAb, d_plasma_monomer, d_plasma_oligomer,
                 d_csf_mAb, d_csf_monomer, d_csf_oligomer,
                 d_brain_monomer_mAb,  d_brain_oligomer_mAb, d_brain_plaque_mAb,
@@ -220,6 +268,21 @@ class OneAbModel:
         return dYdt
 
     def dosefn(self, dose_list, t):
+        """Function to convert dosing schedule into continuous function.
+
+        Parameters
+        ----------
+        dose_list : List
+            List of dosing times in dosing schedule
+        t : List
+            Current time
+
+        Returns
+        ----------
+        sol : float
+            Input antibody concentration in nM at current time
+
+        """
         infusion = (((((self.dose * self.bw)/1000/3.22)/147181.62))*1e9)  # nM
         f = 0.5
         delta = 0.1

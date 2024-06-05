@@ -1,16 +1,31 @@
 from .parameters import NoAbParameters
-# model for two pools of monomers that converge on the same oligomer and plaque pools
-# each pool has a different production rate along side different aggregation rates
-# for simulating the SILK data these parameters should be the same for both pools, but with one starting from
-# steady state (unlabeled) and the other from zero (labeled)
-# the production should be the same underlying rate, but the labeled pool is added to at a rate enrichment*synthesis and 
-# unlabeled is added to a rate (1-enrichment)*synthesis
-# for Abeta 42 and 40 the parameters will be different for the two pools to reflect the different steady state concentrations
-# and the different propensities for aggregation
 
 
 class NoAbModel:
+    """Class representing the ODE model with no antibody and two Abeta
+    populations. These can be used to represent Abeta42 and Abeta40, or
+    leucine labeled and unlabeled Abeta.
+
+    """
     def __init__(self, leucine=None, Ab40=None, x=None, time_points=None):
+        """Constructor Method.
+
+        Parameters
+        ----------
+        leucine : List
+            Nested list, [List, List] representing the proportion of leucine
+            labeled at each time point in the plasma and CNS respectively
+        Ab40 : List
+            A list, [float, float, float], representing scaling factors for:
+            Abeta40 synthesis, aggregation, and separation, relative to those
+            rates for Abeta42
+        x : List
+            Input parameters to override those provided in
+            class:NoAbParameters if desired
+        time_points : Int
+            The number of time points overwhich the simulation will be run
+
+        """
         if time_points is None:
             raise ValueError("The total number of timepoints for\
                               the simulation must be provided")
@@ -40,28 +55,45 @@ class NoAbModel:
             self.params.k_olig_sep_ext = 10**x[19]
             self.params.k_plaque_inc = 10**x[20]
             self.params.k_plaque_sep = 10**x[21]
-        
+
         self.type = 'no_ab'
         self.Ab40_agg_scaling = 1
         self.Ab40_sep_scaling = 1
         self.f_leu = [[0]*time_points, [0]*time_points]
-        
+
         if leucine is not None:
             self.type = 'no_ab_silk'
-            self.f_leu = leucine  # first element for plasma and so peripheral, second for CSF and so CNS
-        
+            self.f_leu = leucine
+
         if Ab40 is not None:
             self.type = 'no_ab_two_pools'
-            self.f_leu = [[Ab40[0]]*Ab40[1], [Ab40[0]]*Ab40[1]]  # list of scaling factors for Abeta 40 vs 42 synthesis
-            self.Ab40_agg_scaling = Ab40[2]
-            self.Ab40_sep_scaling = Ab40[3]
+            self.f_leu = [Ab40[0]*time_points, Ab40[0]*time_points]
+            self.Ab40_agg_scaling = Ab40[1]
+            self.Ab40_sep_scaling = Ab40[2]
 
     def equations(self, t, y):
+        """Ordinary Differential Equations used by scipy.integrate.solve_ivp()
+
+        Parameters
+        ----------
+        t : float
+            Current time
+        y : List
+            Current values for each variable
+
+        Returns
+        ----------
+        dYdt : List
+            Change in each variable at current time
+
+        """
         unlabeled_production = (1-self.f_leu[1][int(t)])*self.params.k_in
-        unlabeled_peripheral_production = (1-self.f_leu[0][int(t)])*self.params.k_peripheral_production
+        unlabeled_peripheral_production = (1-self.f_leu[0][int(t)])*self.\
+            params.k_peripheral_production
 
         labeled_production = (self.f_leu[1][int(t)])*self.params.k_in
-        labeled_peripheral_production = (self.f_leu[0][int(t)])*self.params.k_peripheral_production
+        labeled_peripheral_production = (self.f_leu[0][int(t)])*self.\
+            params.k_peripheral_production
 
         olig_agg_40 = self.params.k_olig_inc * self.Ab40_agg_scaling
         olig_sep_40 = self.params.k_olig_sep * self.Ab40_sep_scaling
@@ -74,7 +106,7 @@ class NoAbModel:
 
         brain_plaque42 = y[4]
         brain_plaque40 = y[5]
-         
+
         plasma_monomer42 = y[6]
         plasma_monomer40 = y[7]
 
@@ -83,7 +115,7 @@ class NoAbModel:
 
         csf_monomer42 = y[10]
         csf_monomer40 = y[11]
-        
+
         csf_oligomer42 = y[12]
         csf_oligomer40 = y[13]
 
@@ -95,7 +127,7 @@ class NoAbModel:
                              + self.params.k_monomer_plasma_brain*plasma_monomer42
                              - self.params.k_monomer_brain_csf*brain_monomer42
                              + self.params.k_monomer_csf_brain*csf_monomer42)
-        
+
         d_brain_monomer40 = (labeled_production
                              - olig_agg_40*brain_monomer40
                              + olig_sep_40*brain_oligomer40
@@ -104,7 +136,7 @@ class NoAbModel:
                              + self.params.k_monomer_plasma_brain*plasma_monomer40
                              - self.params.k_monomer_brain_csf*brain_monomer40
                              + self.params.k_monomer_csf_brain*csf_monomer40)
-        
+
         d_brain_oligomer40 = (olig_agg_40*brain_monomer40
                               - olig_sep_40*brain_oligomer40
                               - self.params.k_plaque_inc*brain_oligomer40
@@ -114,7 +146,7 @@ class NoAbModel:
                               + self.params.k_oligomer_plasma_brain*plasma_oligomer40
                               - self.params.k_oligomer_brain_csf*brain_oligomer40
                               + self.params.k_oligomer_csf_brain*csf_oligomer40)
-        
+
         d_brain_oligomer42 = (self.params.k_olig_inc*brain_monomer42
                               - self.params.k_olig_sep*brain_oligomer42
                               - self.params.k_plaque_inc*brain_oligomer42
@@ -124,7 +156,7 @@ class NoAbModel:
                               + self.params.k_oligomer_plasma_brain*plasma_oligomer42
                               - self.params.k_oligomer_brain_csf*brain_oligomer42
                               + self.params.k_oligomer_csf_brain*csf_oligomer42)
-        
+
         d_brain_plaque40 = (self.params.k_plaque_inc*brain_oligomer40
                             - self.params.k_plaque_sep*brain_plaque40)
         d_brain_plaque42 = (self.params.k_plaque_inc*brain_oligomer42
